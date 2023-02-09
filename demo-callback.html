@@ -10,10 +10,19 @@
       integrity="sha384-GLhlTQ8iRABdZLl6O3oVMWSktQOp6b7In1Zl3/Jr59b6EGGoI1aFkw7cmDA6j6gD"
       crossorigin="anonymous"
     />
+    <style>
+      #neighbors .card {
+        cursor: pointer;
+      }
+      #details {
+        opacity: 0;
+      }
+    </style>
     <title>Document</title>
   </head>
   <body class="bg-dark-subtle">
     <div class="container my-5">
+      <div id="errors"></div>
       <div class="card mb-3 shadow-sm">
         <div class="card-body">
           <div class="input-group">
@@ -24,36 +33,18 @@
           </div>
         </div>
       </div>
-      <div class="card mb-3 shadow-sm" id="country-details">
-        <!-- <div class="card-header">Arama Sonucu</div>
-        <div class="card-body">
-          <div class="row">
-            <div class="col-4">
-              <img src="" class="img-fluid" alt="" />
-            </div>
-            <div class="col-8">
-              <div class="card-title">Türkiye</div>
-              <hr />
-              <div class="row">
-                <div class="col-4">Nüfus :</div>
-                <div class="col-8">84.5 Milyon</div>
-              </div>
-              <div class="row">
-                <div class="col-4">Resmi Dili :</div>
-                <div class="col-8">84.5 Milyon</div>
-              </div>
-              <div class="row">
-                <div class="col-4">Başkent :</div>
-                <div class="col-8">84.5 Milyon</div>
-              </div>
+      <div id="details">
+        <div class="card mb-3 shadow-sm">
+          <div class="card-header">Arama Sonucu</div>
+          <div class="card-body">
+            <div class="row" id="country-details"></div>
+          </div>
+          <div class="card shadow-sm">
+            <div class="card-header">Komşu Ülkeler</div>
+            <div class="card-body">
+              <div class="row" id="neighbors"></div>
             </div>
           </div>
-        </div> -->
-      </div>
-      <div class="card mb-3 shadow-sm">
-        <div class="card-header">Komşu Ülkeler</div>
-        <div class="card-body">
-          <div class="row" id="neighbors"></div>
         </div>
       </div>
     </div>
@@ -61,41 +52,63 @@
     <script>
       document.querySelector("#btnSearch").addEventListener("click", () => {
         let text = document.querySelector("#txtSearch").value;
+        document.querySelector("#details").style.opacity = 0;
         getCountry(text);
       });
 
       function getCountry(country) {
-        const request = new XMLHttpRequest();
+        const request = fetch("https://restcountries.com/v3.1/name/" + country)
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error("Country is not found.");
+            }
+            return response.json();
+          })
+          .then((data) => {
+            renderCountry(data[0]);
+            const contruies = data[0].borders;
 
-        request.open("GET", "https://restcountries.com/v3.1/name/" + country);
-        request.send();
+            if (!contruies) throw new Error("Komşu Ülke Bulunamadı.");
 
-        request.addEventListener("load", function () {
-          const data = JSON.parse(this.responseText);
-          console.log(data);
-          renderCountry(data[0]);
+            return fetch(
+              "https://restcountries.com/v3.1/alpha?codes=" +
+                contruies.toString()
+            );
+          })
+          .then((response) => response.json())
+          .then((data) => renderNeighbors(data))
+          .catch((err) => renderError(err));
+        // const request = new XMLHttpRequest();
 
-          const contruies = data[0].borders.toString();
+        // request.open("GET", "https://restcountries.com/v3.1/name/" + country);
+        // request.send();
 
-          const req = new XMLHttpRequest();
-          req.open(
-            "GET",
-            "https://restcountries.com/v3.1/alpha?codes=" + contruies
-          );
-          req.send();
+        // request.addEventListener("load", function () {
+        //   const data = JSON.parse(this.responseText);
+        //   console.log(data);
+        //   renderCountry(data[0]);
 
-          req.addEventListener("load", function () {
-            const data = JSON.parse(this.responseText);
-            renderNeighbors(data);
-          });
-        });
+        //   const contruies = data[0].borders.toString();
+
+        //   const req = new XMLHttpRequest();
+        //   req.open(
+        //     "GET",
+        //     "https://restcountries.com/v3.1/alpha?codes=" + contruies
+        //   );
+        //   req.send();
+
+        //   req.addEventListener("load", function () {
+        //     const data = JSON.parse(this.responseText);
+        //     renderNeighbors(data);
+        //   });
+        // });
       }
 
       function renderCountry(data) {
+        document.querySelector("#country-details").innerHTML = "";
+        document.querySelector("#neighbors").innerHTML = "";
+
         let html = `
-            <div class="card-header">Arama Sonucu</div>
-            <div class="card-body">
-                <div class="row">
                     <div class="col-4">
                         <img src="${data.flags.png}" class="img-fluid" alt="" />
                     </div>
@@ -119,10 +132,8 @@
                             <div class="col-8">${data.capital[0]}</div>
                         </div>
                     </div>
-                </div>
-            </div>
             `;
-
+        document.querySelector("#details").style.opacity = 1;
         document.querySelector("#country-details").innerHTML = html;
       }
 
@@ -135,7 +146,9 @@
                     <img src = "${country.flags.png}" class = "card-img-top h-50" />
                     <div class = "card-body">
                         <h6 class = "card-title"> ${country.name.common}</h6>
+                        <p class = "card-text"><small>Click for more info.</small></p>
                     </div>
+
                 </div>
             </div>
             `;
@@ -150,6 +163,18 @@
         if (newElement != null) {
           getCountry(newElement);
         }
+      }
+
+      function renderError(err) {
+        const html = `
+          <div class = "alert alert-danger">
+            ${err.message}
+          </div>
+        `;
+        setTimeout(() => {
+          document.querySelector("#errors").innerHTML = "";
+        }, 3000);
+        document.querySelector("#errors").innerHTML = html;
       }
     </script>
   </body>
